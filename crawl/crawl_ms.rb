@@ -10,6 +10,8 @@ require 'open-uri'
 class Minshu
   def initialize(path)
 
+    @path = path
+
     @c_es = Hash.new{|h,k|h[k] = ""}
     @c_url = Hash.new{ }
     
@@ -19,7 +21,7 @@ class Minshu
     @page = @agent.get("https://www.nikki.ne.jp/a/login/")
     @page.encoding = "UTF-8"
     
-    open("#{path}/config") do |f|
+    open("#{@path}/config") do |f|
       @id = f.gets.chomp
       @pass = f.gets.chomp
     end
@@ -92,7 +94,7 @@ class Minshu
           target_url = base_url + year
           puts "#{category} - #{year} - #{target_url}"
           get_text(target_url,category)
-          sleep(5)
+          sleep(7)
         end
       end
       _save_data(category)
@@ -100,7 +102,7 @@ class Minshu
   end
 
   def _save_data(category)
-    f = open("es_about_#{category.delete("/")}.txt","w")
+    f = open("#{@path}/data/es_about_#{category.delete("/")}.txt","w")
     f.puts @c_es[category]
     f.close
   end
