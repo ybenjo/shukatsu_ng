@@ -11,6 +11,7 @@ class Minshu
   def initialize(path)
 
     @c_es = Hash.new{|h,k|h[k] = ""}
+    @c_url = Hash.new{ }
     
     @agent = WWW::Mechanize.new
     # @agent.user_agent_alias = 'Mac Safari'
@@ -49,7 +50,32 @@ class Minshu
     end
   end
 
-  def search_url
+  def _get_category_url
+    large_category = ["10","20","30","40","50"]
+    
+    large_category.each do |i|
+      doc = Hpricot(open("http://www.nikki.ne.jp/bbs/#{i}/").read)
+      (doc/"li.onCategory"/"ul.smallCategory"/"li"/:a).each do |c|
+        url = c["href"]
+        category = c.inner_text.toutf8
+        @c_url[category] = "http://www.nikki.ne.jp" + url
+      end
+    end
+  end
+
+  def _get_each_company_url(url)
+    ret = [ ]
+    doc = Hpricot(open(url).read)
+    
+    (doc/"ol.high"/:li/:a).each do |e|
+      ret.push e["href"] if e["href"] =~ /bbs/
+    end
+
+    (doc/"ol.low"/:li/:a).each do |e|
+      ret.push e["href"] if e["href"] =~ /bbs/
+    end
+    
+    p ret
   end
 
   
@@ -59,4 +85,6 @@ end
 if __FILE__ == $0
   m = Minshu.new(File.dirname(__FILE__))
   #m.get_text("http://www.nikki.ne.jp/?action=bbs&subaction=es_view&pid=6702&grad_yyyy=2010",:eeee)
+  #m._get_category_url
+  #m._get_each_company_url("http://www.nikki.ne.jp/bbs/12/")
 end
