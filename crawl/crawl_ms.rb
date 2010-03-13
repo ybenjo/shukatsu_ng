@@ -45,7 +45,7 @@ class Minshu
         
     (Hpricot(@page.body)/"div#es").each do |elem|
       elem.inner_html.toutf8.scan(/(by\s#{year}年卒業\s<!--.*?--><\/font>(.+?)<hr size=\"1\" color=\"#cccccc\"){1,}/).each do |txt|
-        @c_es[category] += txt[1].delete("<br />")
+        @c_es[category] += txt[1].delete("<br />\t\n") + "\n"
       end
     end
   end
@@ -60,6 +60,7 @@ class Minshu
         category = c.inner_text.toutf8
         @c_url[category] = "http://www.nikki.ne.jp" + url
       end
+      sleep(5)
     end
   end
 
@@ -74,10 +75,35 @@ class Minshu
     (doc/"ol.low"/:li/:a).each do |e|
       ret.push e["href"] if e["href"] =~ /bbs/
     end
-    
-    p ret
+    return ret
   end
 
+  def _scan_url(url)
+    comp_id = url.scan(/\/bbs\/(\d+)\/$/)
+    return "http://www.nikki.ne.jp/?action=bbs&subaction=es_view&pid=#{comp_id}&grad_yyyy="
+  end
+
+  def get_entry_sheet
+    _get_category_url
+    @c_url.each do |category, url|
+      _get_each_company_url(url).each do |u|
+        base_url = _scan_url(u)
+        ["2005","2006","2007","2008","2009","2010"].each do |year|
+          target_url = base_url + year
+          puts "#{category} - #{year} - #{target_url}"
+          get_text(target_url,category)
+          sleep(5)
+        end
+      end
+      _save_data(category)
+    end
+  end
+
+  def _save_data(category)
+    f = open("es_about_#{category.delete("/")}.txt","w")
+    f.puts @c_es[category]
+    f.close
+  end
   
 end
 
@@ -87,4 +113,5 @@ if __FILE__ == $0
   #m.get_text("http://www.nikki.ne.jp/?action=bbs&subaction=es_view&pid=6702&grad_yyyy=2010",:eeee)
   #m._get_category_url
   #m._get_each_company_url("http://www.nikki.ne.jp/bbs/12/")
+  m.get_entry_sheet
 end
