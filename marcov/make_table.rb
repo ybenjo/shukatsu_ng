@@ -82,11 +82,12 @@ class Marcov_table
   end
 end
 
-
-a = Marcov_table.new("../crawl/data/ALL.txt",5)
-a.calc
-
-3.times do
-  a.make_sentence
-  puts "-------------------"
+if __FILE__ == $0
+  a = Marcov_table.new("../crawl/data/通信ネットワーク.txt",5)
+  a.calc
+  
+  3.times do
+    a.make_sentence
+    puts "-------------------"
+  end
 end
