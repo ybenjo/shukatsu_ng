@@ -35,7 +35,9 @@ class Marcov_table
 
   def calc
     @text.each do |str|
-      set_table(_split(str))
+      str.split("。").each do |line|
+        set_table(_split(line))
+      end
     end
   end
 
@@ -78,7 +80,7 @@ class Marcov_table
       w = w[1..-1]
       w.push ret
     end
-    puts sentence.gsub(/\:head\d/,"")
+    return sentence.gsub(/\:head\d/,"") + "。"
   end
 end
 
