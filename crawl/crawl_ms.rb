@@ -7,6 +7,7 @@ require 'logger'
 require 'rubygems'
 require 'mechanize'
 require 'nokogiri'
+require 'hpricot'
 
 class Minshu
   #コンストラクタ
@@ -63,25 +64,6 @@ class Minshu
     end
   end
 
-  def get_text(target_url, category)
-    begin
-      @page = @agent.get(target_url)
-      @page.encoding = "UTF-8"
-      
-      year = target_url.scan(/&grad_yyyy=(\d+)$/)[0][0]
-      
-      (Hpricot(@page.body)/"div#es").each do |elem|
-        #elem.inner_html.toutf8.scan(/(by\s#{year}年卒業\s<!--.*?--><\/font>(.+?)<hr size=\"1\" color=\"#cccccc\"){1,}/).each do |txt|
-        elem.inner_html.toutf8.scan(/(by\s#{year}年卒業\s<!--.*?--><\/font>(.+?)<hr size="1" color="#cccccc"){1,}/).each do |txt|
-          @category_es[category].push  txt[1].gsub(/<br \/>/, "").gsub(/\t/, "").gsub(/\n/, "")
-        end
-      end
-    rescue Timeout::Error => e
-      _raise_error(e,  __method__)
-      get_text(target_url, category)
-    end
-  end
-
   def _get_category_url
     begin
       large_category = ["10","20","30","40","50"]
@@ -91,6 +73,7 @@ class Minshu
         (doc/"li.onCategory"/"ul.smallCategory"/"li"/:a).each do |c|
           url = c["href"]
           category = c.inner_text.toutf8
+          puts "#{category} - #{url}"
           @category_url[category] = "http://www.nikki.ne.jp" + url
         end
         sleep(5)
@@ -101,39 +84,55 @@ class Minshu
     end
   end
 
-  def _get_each_company_url(url)
+  def _get_each_company_id(url)
     begin
-      ret = [ ]
+      company_id = [ ]
       doc = Hpricot(open(url).read)
-      
+
       (doc/"ol.high"/:li/:a).each do |e|
-        ret.push e["href"] if e["href"] =~ /bbs/
+        if e["href"] =~ /\/bbs\/(\d+)\/$/
+          p e["href"]
+          company_id.push $1
+        end
       end
       
       (doc/"ol.low"/:li/:a).each do |e|
-        ret.push e["href"] if e["href"] =~ /bbs/
+        if e["href"] =~ /\/bbs\/(\d+)\/$/
+          company_id.push $1
+        end
       end
-      return ret
+      return company_id
     rescue Timeout::Error => e
       _raise_error(e, __method__)
       _get_each_company_url(url)
     end
   end
 
-  def _scan_url(url)
-    comp_id = url.scan(/\/bbs\/(\d+)\/$/)
-    return "http://www.nikki.ne.jp/?action=bbs&subaction=es_view&pid=#{comp_id}&grad_yyyy="
+  def get_text(id, year, category)
+    begin
+      url = "http://www.nikki.ne.jp/?action=bbs&subaction=es_view&pid=#{id}&grad_yyyy=#{year}"
+      @page = @agent.get(url)
+      @page.encoding = "UTF-8"
+      
+      (Hpricot(@page.body)/"div#es").each do |elem|
+        elem.inner_html.toutf8.gsub("\n", "").scan(/(by #{year}年卒業 (<!--.*?-->)?<\/font><br \/><br \/>(.*?)<br \/><br \/><hr size="1"){1,}/).each do |txt|
+          @category_es[category].push  txt[2].gsub(/<br \/>/, "").gsub(/\t/, "")
+        end
+      end
+    rescue Timeout::Error => e
+      _raise_error(e,  __method__)
+      get_text(comp_id, year, category)
+    end
   end
+
 
   def get_entry_sheet
     _get_category_url
     @category_url.each do |category, url|
-      _get_each_company_url(url).each do |u|
-        base_url = _scan_url(u)
+      _get_each_company_id(url).each do |id|
         ["2005", "2006", "2007", "2008", "2009", "2010"].each do |year|
-          target_url = base_url + year
-          puts "#{category} - #{year} - #{target_url}"
-          get_text(target_url, category)
+          puts "#{category} - #{year} - #{id}"
+          get_text(id, year, category)
           sleep(7)
         end
       end
@@ -142,9 +141,9 @@ class Minshu
   end
 
   def _save_data(category)
-    f = open("./data/es_about_#{category.delete("/")}.txt","w")
-    f.puts @category_es[category]
-    f.close
+    open("./data/es_about_#{category.delete("/")}.txt","w"){|f|
+      f.puts @category_es[category]
+    }
   end
   
 end
@@ -152,8 +151,7 @@ end
 
 if __FILE__ == $0
   m = Minshu.new()
-  #m.get_text("http://www.nikki.ne.jp/?action=bbs&subaction=es_view&pid=6702&grad_yyyy=2010",:eeee)
   #m._get_category_url
-  #m._get_each_company_url("http://www.nikki.ne.jp/bbs/12/")
+  #m._get_each_company_id("http://www.nikki.ne.jp/bbs/12/")
   #m.get_entry_sheet
 end
