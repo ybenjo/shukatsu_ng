@@ -6,13 +6,15 @@ require 'yaml'
 require 'logger'
 require 'rubygems'
 require 'mechanize'
-require 'hpricot'
+require 'nokogiri'
 
 class Minshu
+  #コンストラクタ
   def initialize()
     
-    @category_es = Hash.new{|h,k|h[k] = ""}
+    @category_es = Hash.new{|h,k|h[k] = Array.new}
     @category_url = Hash.new
+    @retry_count = 0
     
     @agent = Mechanize.new
     @agent.user_agent_alias = "Mechanize"
@@ -31,18 +33,19 @@ class Minshu
 
   #エラーが起こった時のlog出力
   #ついでにリトライ制限判定
-  def _raise_error(e, method_name, try)
-    @log.fatal("Failed to #{method_name}.")
-    @log.fatal(e.inspect)
-    if try > @retry_limit
-      @log.fatal("Too many errors!")
+  def _raise_error(e, method_name)
+    @retry_count += 1
+    @log.error("Failed to #{method_name}.")
+    @log.error(e.inspect)
+    if @retry_count > @retry_limit
+      @log.error("Too many errors!")
       exit()
     else
-      sleep(20)
+      sleep(30)
     end
   end
 
-  def _login(try = 1)
+  def _login
     begin
       @page = @agent.get("https://www.nikki.ne.jp/a/login/")
       @page.encoding = "UTF-8"
@@ -54,20 +57,13 @@ class Minshu
 
       #フォームのボタンを押す感じ
       @page = @agent.submit(login_form)
-      sleep(2)
-      
-      #リダイレクトを追ってくれない
-      #かつ「自動的に移動しないときはこちら」のようなリンクも存在しないので
-      @page = @agent.get("https://www.nikki.ne.jp/a/login/")
-      @page.encoding = "UTF-8"
-      @log.info("Successfully Login.")
     rescue Mechanize::ResponseCodeError , Timeout::Error , SocketError => e
-      _raise_error(e, __method__, try)
-      _login(try + 1)
+      _raise_error(e, __method__)
+      _login
     end
   end
 
-  def get_text(target_url, category, try = 1)
+  def get_text(target_url, category)
     begin
       @page = @agent.get(target_url)
       @page.encoding = "UTF-8"
@@ -77,16 +73,16 @@ class Minshu
       (Hpricot(@page.body)/"div#es").each do |elem|
         #elem.inner_html.toutf8.scan(/(by\s#{year}年卒業\s<!--.*?--><\/font>(.+?)<hr size=\"1\" color=\"#cccccc\"){1,}/).each do |txt|
         elem.inner_html.toutf8.scan(/(by\s#{year}年卒業\s<!--.*?--><\/font>(.+?)<hr size="1" color="#cccccc"){1,}/).each do |txt|
-          @category_es[category] += txt[1].gsub(/<br \/>/, "").gsub(/\t/, "").gsub(/\n/, "") + "\n"
+          @category_es[category].push  txt[1].gsub(/<br \/>/, "").gsub(/\t/, "").gsub(/\n/, "")
         end
       end
     rescue Timeout::Error => e
-      _raise_error(e, "get_text", try)
-      get_text(target_url, __method__, try+1)
+      _raise_error(e,  __method__)
+      get_text(target_url, category)
     end
   end
 
-  def _get_category_url(try = 1)
+  def _get_category_url
     begin
       large_category = ["10","20","30","40","50"]
       
@@ -100,12 +96,12 @@ class Minshu
         sleep(5)
       end
     rescue Timeout::Error => e
-      _raise_error(e, __method__, try)
-      _get_category_url(try + 1)
+      _raise_error(e, __method__)
+      _get_category_url
     end
   end
 
-  def _get_each_company_url(url, try = 1)
+  def _get_each_company_url(url)
     begin
       ret = [ ]
       doc = Hpricot(open(url).read)
@@ -119,8 +115,8 @@ class Minshu
       end
       return ret
     rescue Timeout::Error => e
-      _raise_error(e, __method__, try)
-      _get_each_company_url(url, try + 1)
+      _raise_error(e, __method__)
+      _get_each_company_url(url)
     end
   end
 
