@@ -70,7 +70,7 @@ class Minshu
       
       large_category.each do |i|
         doc = Hpricot(open("http://www.nikki.ne.jp/bbs/#{i}/").read)
-        (doc/"li.onCategory"/"ul.smallCategory"/"li"/:a).each do |c|
+        (doc/"li.onCategory"/:a).each do |c|
           url = c["href"]
           category = c.inner_text.toutf8
           puts "#{category} - #{url}"
@@ -89,14 +89,13 @@ class Minshu
       company_id = [ ]
       doc = Hpricot(open(url).read)
 
-      (doc/"ol.high"/:li/:a).each do |e|
+      (doc/"ol.high"/:a).each do |e|
         if e["href"] =~ /\/bbs\/(\d+)\/$/
-          p e["href"]
           company_id.push $1
         end
       end
       
-      (doc/"ol.low"/:li/:a).each do |e|
+      (doc/"ol.low"/:a).each do |e|
         if e["href"] =~ /\/bbs\/(\d+)\/$/
           company_id.push $1
         end
